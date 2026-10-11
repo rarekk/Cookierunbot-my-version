@@ -567,6 +567,53 @@
               </label>
             </div>
 
+            <!-- Mode Presets & Treasure Gacha Section -->
+            <div class="border-t border-slate-700/60 pt-3.5 space-y-3">
+              <div class="flex items-center gap-2">
+                <span class="text-base">💎</span>
+                <span class="text-sm font-bold text-purple-300">Mode Preset &amp; Treasure Gacha</span>
+              </div>
+
+              <div class="flex items-center justify-between bg-slate-900/60 p-3 rounded-xl border border-slate-700/60">
+                <span class="text-xs text-white font-semibold">🎛️ Bot Mode Preset</span>
+                <select id="cfg-bot-mode" onchange="toggleModePreset(); saveBotSettingsAuto()" class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-purple-300 font-bold focus:outline-none focus:border-purple-500">
+                  <option value="FARMING">▶ Auto Run / Farming</option>
+                  <option value="GACHA">💎 Treasure Gacha &amp; Salvage</option>
+                  <option value="HYBRID">🔀 Hybrid (Run + Gacha)</option>
+                </select>
+              </div>
+
+              <div class="gacha-settings space-y-3">
+                <div class="flex items-center justify-between bg-slate-900/60 p-3 rounded-xl border border-slate-700/60">
+                  <span class="text-xs text-white font-semibold">🎰 Gacha Rounds per Session</span>
+                  <div class="flex items-center gap-1.5">
+                    <input type="number" id="cfg-gacha-rounds" value="1" min="1" max="50" oninput="saveBotSettingsAuto()" class="w-20 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-center text-xs text-purple-300 font-bold focus:outline-none focus:border-purple-500 font-mono">
+                    <span class="text-xs text-slate-400">รอบ</span>
+                  </div>
+                </div>
+
+                <label class="flex items-center justify-between cursor-pointer">
+                  <span class="text-slate-300 text-xs">♻️ Auto-Dismantle Low-Tier</span>
+                  <input type="checkbox" id="cfg-gacha-dismantle" checked onchange="saveBotSettingsAuto()" class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-purple-500">
+                </label>
+
+                <label class="flex items-center justify-between cursor-pointer">
+                  <span class="text-slate-300 text-xs">🌈 Preserve Rainbow / S-Tier</span>
+                  <input type="checkbox" id="cfg-gacha-rainbow" checked onchange="saveBotSettingsAuto()" class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-purple-500">
+                </label>
+
+                <label class="flex items-center justify-between cursor-pointer">
+                  <span class="text-slate-300 text-xs">🍪 Preserve Cookie Treasures</span>
+                  <input type="checkbox" id="cfg-gacha-cookie" checked onchange="saveBotSettingsAuto()" class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-purple-500">
+                </label>
+
+                <div class="hybrid-settings hidden flex items-center justify-between bg-slate-900/60 p-3 rounded-xl border border-slate-700/60">
+                  <span class="text-xs text-white font-semibold">🔁 Gacha Session Every (runs)</span>
+                  <input type="number" id="cfg-gacha-every" value="10" min="1" max="200" oninput="saveBotSettingsAuto()" class="w-20 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-center text-xs text-purple-300 font-bold focus:outline-none focus:border-purple-500 font-mono">
+                </div>
+              </div>
+            </div>
+
             <!-- Auto-Stop Goals Section -->
             <div class="border-t border-slate-700/60 pt-3.5 space-y-3">
               <div class="flex items-center gap-2">
@@ -769,6 +816,13 @@
       if (data.short_relay_exit_delay !== undefined) document.getElementById('cfg-relay-t2').value = data.short_relay_exit_delay;
       if (data.smart_relay_guard !== undefined) document.getElementById('cfg-relay-guard').checked = !!data.smart_relay_guard;
       if (data.short_relay_exit !== undefined) document.getElementById('cfg-short-exit').checked = !!data.short_relay_exit;
+      if (data.bot_mode !== undefined) document.getElementById('cfg-bot-mode').value = data.bot_mode;
+      if (data.gacha_rounds !== undefined) document.getElementById('cfg-gacha-rounds').value = data.gacha_rounds;
+      if (data.gacha_auto_dismantle !== undefined) document.getElementById('cfg-gacha-dismantle').checked = !!data.gacha_auto_dismantle;
+      if (data.gacha_preserve_rainbow !== undefined) document.getElementById('cfg-gacha-rainbow').checked = !!data.gacha_preserve_rainbow;
+      if (data.gacha_preserve_cookie !== undefined) document.getElementById('cfg-gacha-cookie').checked = !!data.gacha_preserve_cookie;
+      if (data.gacha_every_n_runs !== undefined) document.getElementById('cfg-gacha-every').value = data.gacha_every_n_runs;
+      toggleModePreset();
       if (data.stop_goal_rounds_enabled !== undefined) document.getElementById('cfg-goal-rounds-enabled').checked = !!data.stop_goal_rounds_enabled;
       if (data.stop_goal_rounds_target !== undefined) document.getElementById('cfg-goal-rounds-target').value = data.stop_goal_rounds_target;
       if (data.stop_goal_time_enabled !== undefined) document.getElementById('cfg-goal-time-enabled').checked = !!data.stop_goal_time_enabled;
@@ -792,6 +846,13 @@
         short_relay_exit_delay: parseFloat(document.getElementById('cfg-relay-t2').value) || 2.0,
         smart_relay_guard: document.getElementById('cfg-relay-guard').checked,
         short_relay_exit: document.getElementById('cfg-short-exit').checked,
+        bot_mode: document.getElementById('cfg-bot-mode').value,
+        gacha_rounds: parseInt(document.getElementById('cfg-gacha-rounds').value) || 1,
+        gacha_auto_dismantle: document.getElementById('cfg-gacha-dismantle').checked,
+        gacha_preserve_rainbow: document.getElementById('cfg-gacha-rainbow').checked,
+        gacha_preserve_cookie: document.getElementById('cfg-gacha-cookie').checked,
+        gacha_every_n_runs: parseInt(document.getElementById('cfg-gacha-every').value) || 10,
+        gacha_loop_interval: 30.0,
         stop_goal_rounds_enabled: document.getElementById('cfg-goal-rounds-enabled').checked,
         stop_goal_rounds_target: parseInt(document.getElementById('cfg-goal-rounds-target').value) || 50,
         stop_goal_time_enabled: document.getElementById('cfg-goal-time-enabled').checked,
@@ -832,6 +893,16 @@
       }
     }
 
+    function toggleModePreset() {
+      const mode = document.getElementById('cfg-bot-mode').value;
+      document.querySelectorAll('.gacha-settings').forEach(el => {
+        el.classList.toggle('hidden', mode === 'FARMING');
+      });
+      document.querySelectorAll('.hybrid-settings').forEach(el => {
+        el.classList.toggle('hidden', mode !== 'HYBRID');
+      });
+    }
+
     async function toggleBot() {
       const btn = document.getElementById('btn-toggle-bot');
       btn.disabled = true;
@@ -853,6 +924,13 @@
           short_relay_exit_delay: parseFloat(document.getElementById('cfg-relay-t2').value) || 2.0,
           smart_relay_guard: document.getElementById('cfg-relay-guard').checked,
           short_relay_exit: document.getElementById('cfg-short-exit').checked,
+          bot_mode: document.getElementById('cfg-bot-mode').value,
+          gacha_rounds: parseInt(document.getElementById('cfg-gacha-rounds').value) || 1,
+          gacha_auto_dismantle: document.getElementById('cfg-gacha-dismantle').checked,
+          gacha_preserve_rainbow: document.getElementById('cfg-gacha-rainbow').checked,
+          gacha_preserve_cookie: document.getElementById('cfg-gacha-cookie').checked,
+          gacha_every_n_runs: parseInt(document.getElementById('cfg-gacha-every').value) || 10,
+          gacha_loop_interval: 30.0,
           stop_goal_rounds_enabled: document.getElementById('cfg-goal-rounds-enabled').checked,
           stop_goal_rounds_target: parseInt(document.getElementById('cfg-goal-rounds-target').value) || 50,
           stop_goal_time_enabled: document.getElementById('cfg-goal-time-enabled').checked,

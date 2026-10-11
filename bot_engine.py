@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 
 import config
+import logbus
 from actions import (
     accept_congratulations,
     accept_daily_checkin,
@@ -36,6 +37,7 @@ from actions import (
     purchase_cookie_relay,
     purchase_desired_random_boost,
     purchase_fast_start,
+    run_treasure_gacha_salvage,
     start_game,
     using_cookie_relay,
     using_fast_start,
@@ -62,9 +64,16 @@ from config import (
     BOOST_REVIVE_ONCE_WITH_80HP_TEMPLATE,
     DEFAULT_SHORT_RELAY_EXIT,
     DEFAULT_SMART_RELAY_GUARD,
+    DEFAULT_BOT_MODE,
+    DEFAULT_GACHA_AUTO_DISMANTLE,
+    DEFAULT_GACHA_EVERY_N_RUNS,
+    DEFAULT_GACHA_PRESERVE_COOKIE,
+    DEFAULT_GACHA_PRESERVE_RAINBOW,
+    DEFAULT_GACHA_ROUNDS,
     DETECTION_ALWAYS_STAGES,
     DETECTION_GROUPS,
     DETECTION_RECOVERY_SCAN_INTERVAL,
+    GACHA_LOOP_INTERVAL_SECONDS,
     HEART_INTERVAL_JITTER_SECONDS,
     HEART_INTERVAL_MINUTES,
     INGAME_SCAN_DELAY,
@@ -73,6 +82,9 @@ from config import (
     IN_GAME_HOLD_POLL_INTERVAL,
     LOOP_THROTTLE_MAX,
     LOOP_THROTTLE_MIN,
+    MODE_FARMING,
+    MODE_GACHA,
+    MODE_HYBRID,
     SAME_STAGE_THROTTLE_MAX,
     SAME_STAGE_THROTTLE_MIN,
     SESSION_RESET_INTERVAL,
@@ -130,6 +142,10 @@ class BotEngine:
         self.thread: Optional[threading.Thread] = None
         self.lock = threading.Lock()
 
+        # Route action/adb progress lines into this engine's log buffer so the
+        # PyQt5 console and web UI see everything (breaks the actions<->engine cycle).
+        logbus.register(self.log)
+
         # Config state
         self.device_ip = config.DEVICE_IP
         self.device_port = config.DEVICE_PORT
@@ -152,6 +168,18 @@ class BotEngine:
         self.short_relay_exit_delay: float = SHORT_RELAY_EXIT_DELAY
         self.smart_relay_guard: bool = DEFAULT_SMART_RELAY_GUARD
         self.short_relay_exit: bool = DEFAULT_SHORT_RELAY_EXIT
+
+        # Mode presets + Treasure Gacha / Salvage settings
+        self.bot_mode: str = DEFAULT_BOT_MODE          # FARMING / GACHA / HYBRID
+        self.gacha_rounds: int = DEFAULT_GACHA_ROUNDS
+        self.gacha_auto_dismantle: bool = DEFAULT_GACHA_AUTO_DISMANTLE
+        self.gacha_preserve_rainbow: bool = DEFAULT_GACHA_PRESERVE_RAINBOW
+        self.gacha_preserve_cookie: bool = DEFAULT_GACHA_PRESERVE_COOKIE
+        self.gacha_every_n_runs: int = DEFAULT_GACHA_EVERY_N_RUNS
+        self.gacha_loop_interval: float = GACHA_LOOP_INTERVAL_SECONDS
+        self.rounds_since_gacha: int = 0
+        self.gacha_sessions_done: int = 0
+        self.last_gacha_time: float = 0.0
 
         # Runtime Stats
         self.start_time: Optional[float] = None
@@ -276,6 +304,17 @@ class BotEngine:
             self.smart_relay_guard = bool(user_config.get("smart_relay_guard", DEFAULT_SMART_RELAY_GUARD))
             self.short_relay_exit = bool(user_config.get("short_relay_exit", DEFAULT_SHORT_RELAY_EXIT))
 
+            # Mode presets + Treasure Gacha / Salvage settings
+            self.bot_mode = str(user_config.get("bot_mode", DEFAULT_BOT_MODE)).upper()
+            if self.bot_mode not in (MODE_FARMING, MODE_GACHA, MODE_HYBRID):
+                self.bot_mode = MODE_FARMING
+            self.gacha_rounds = int(user_config.get("gacha_rounds", DEFAULT_GACHA_ROUNDS))
+            self.gacha_auto_dismantle = bool(user_config.get("gacha_auto_dismantle", DEFAULT_GACHA_AUTO_DISMANTLE))
+            self.gacha_preserve_rainbow = bool(user_config.get("gacha_preserve_rainbow", DEFAULT_GACHA_PRESERVE_RAINBOW))
+            self.gacha_preserve_cookie = bool(user_config.get("gacha_preserve_cookie", DEFAULT_GACHA_PRESERVE_COOKIE))
+            self.gacha_every_n_runs = int(user_config.get("gacha_every_n_runs", DEFAULT_GACHA_EVERY_N_RUNS))
+            self.gacha_loop_interval = float(user_config.get("gacha_loop_interval", GACHA_LOOP_INTERVAL_SECONDS))
+
             config.DEVICE_IP = self.device_ip
             config.DEVICE_PORT = self.device_port
             self.is_running = True
@@ -288,6 +327,7 @@ class BotEngine:
             self.ingame_hold_until = 0.0
             self.last_heart_time = time.time()
             self.relay_used_this_round = False
+            self.rounds_since_gacha = 0
             self.thread = threading.Thread(target=self._run_loop, daemon=True)
             self.thread.start()
             self.log(f"▶️ Bot started (Device: {self.device_ip}:{self.device_port})", "success")
@@ -398,6 +438,16 @@ class BotEngine:
             "short_relay_exit_delay": self.short_relay_exit_delay,
             "smart_relay_guard": self.smart_relay_guard,
             "short_relay_exit": self.short_relay_exit,
+            "bot_mode": self.bot_mode,
+            "gacha_rounds": self.gacha_rounds,
+            "gacha_auto_dismantle": self.gacha_auto_dismantle,
+            "gacha_preserve_rainbow": self.gacha_preserve_rainbow,
+            "gacha_preserve_cookie": self.gacha_preserve_cookie,
+            "gacha_every_n_runs": self.gacha_every_n_runs,
+            "gacha_loop_interval": self.gacha_loop_interval,
+            "rounds_since_gacha": self.rounds_since_gacha,
+            "gacha_sessions_done": self.gacha_sessions_done,
+            "last_gacha_time": self.last_gacha_time,
             "adb_path": get_adb_path(),
             "discord_settings": {
                 "webhook_url": discord_notifier.webhook_url,
@@ -448,6 +498,38 @@ class BotEngine:
         if exit_templates and detect_templates(screen, exit_templates, INGAME_SCAN_REGION):
             return "EXIT"
         return None
+
+    def run_gacha_session(self) -> bool:
+        """Run one complete Treasure Gacha & Salvage session inside the bot thread.
+
+        Returns True when the session completed, False on failure/abort.
+        """
+        self._set_active_state("GACHA")
+        self.log(
+            f"💎 Treasure Gacha session #{self.gacha_sessions_done + 1} — "
+            f"{self.gacha_rounds} draw(s), auto-dismantle={self.gacha_auto_dismantle}, "
+            f"preserve rainbow={self.gacha_preserve_rainbow}, preserve cookie={self.gacha_preserve_cookie}",
+            "info",
+        )
+        try:
+            ok = run_treasure_gacha_salvage(
+                rounds=self.gacha_rounds,
+                auto_dismantle=self.gacha_auto_dismantle,
+                preserve_rainbow=self.gacha_preserve_rainbow,
+                preserve_cookie=self.gacha_preserve_cookie,
+            )
+        except Exception as e:
+            self.log(f"❌ Treasure Gacha session error: {e}", "error")
+            ok = False
+        if ok:
+            self.gacha_sessions_done += 1
+            self.last_gacha_time = time.time()
+            self.log(
+                f"✅ Gacha session complete (total sessions: {self.gacha_sessions_done}).",
+                "success",
+            )
+        self._set_active_state("LOBBY")
+        return ok
 
     def _run_loop(self):
         try:
@@ -603,6 +685,39 @@ class BotEngine:
                         last_stage = None
                         continue
 
+                    # --- Treasure Gacha scheduling (mode-dependent) ---
+                    # FARMING: never gacha here. GACHA: always do a session from the
+                    # lobby. HYBRID: gacha every `gacha_every_n_runs` completed runs.
+                    run_gacha = False
+                    if self.bot_mode == MODE_GACHA:
+                        run_gacha = True
+                    elif self.bot_mode == MODE_HYBRID and self.gacha_every_n_runs > 0:
+                        if self.rounds_since_gacha >= self.gacha_every_n_runs:
+                            run_gacha = True
+
+                    if run_gacha:
+                        ok = self.run_gacha_session()
+                        self.rounds_since_gacha = 0
+                        last_stage = None
+                        detection_group = "PRE_GAME"
+                        if not ok:
+                            # Back off briefly so a calibration problem does not spin.
+                            self.log("⚠️ Gacha session failed — resting 5s before retrying.", "warning")
+                            if self.interruptible_sleep(5.0):
+                                break
+                            continue
+                        if self.bot_mode == MODE_GACHA:
+                            # Pure gacha mode: rest between sessions, then re-loop.
+                            self.log(
+                                f"⏳ Gacha mode: resting {self.gacha_loop_interval:.0f}s "
+                                f"before the next session...",
+                                "info",
+                            )
+                            if self.interruptible_sleep(self.gacha_loop_interval):
+                                break
+                            continue
+                        # HYBRID mode: fall through and start the next run below.
+
                     # Check Auto-Stop Goals before starting next round
                     if self.stop_goal_rounds_enabled and self.rounds_played >= self.stop_goal_rounds_target:
                         goal_msg = f"วิ่งครบตามเป้าหมาย {self.stop_goal_rounds_target} รอบ"
@@ -676,6 +791,7 @@ class BotEngine:
                     play_game()
                     detection_group = "IN_GAME"
                     self.rounds_played += 1
+                    self.rounds_since_gacha += 1
                     self.relay_used_this_round = False
                     self.current_round_start_time = time.time()
                     self.current_round_recorded = False

@@ -1,6 +1,6 @@
 {
   "device_ip": "127.0.0.1",
-  "device_port": 5555,
+  "device_port": 7555,
   "use_fast_start": false,
   "fast_start_min_stock": 10,
   "use_cookie_relay": true,
@@ -8,14 +8,21 @@
   "use_desired_random_boost": true,
   "desired_boost_id": "double_coins",
   "detect_relic": false,
-  "send_friend_lives": true,
+  "send_friend_lives": false,
   "stop_goal_rounds_enabled": false,
   "stop_goal_rounds_target": 50,
   "stop_goal_time_enabled": false,
   "stop_goal_time_hours": 2.0,
   "ingame_scan_delay": 100.0,
   "heart_interval_minutes": 60.0,
-  "short_relay_exit_delay": 2.0,
+  "short_relay_exit_delay": 1.0,
   "smart_relay_guard": true,
-  "short_relay_exit": false
+  "short_relay_exit": true,
+  "bot_mode": "FARMING",
+  "gacha_rounds": 1,
+  "gacha_auto_dismantle": true,
+  "gacha_preserve_rainbow": true,
+  "gacha_preserve_cookie": true,
+  "gacha_every_n_runs": 10,
+  "gacha_loop_interval": 30
 }

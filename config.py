@@ -325,3 +325,113 @@ ANTI_BOT_CARD_POS_5 = (542, 435)
 ANTI_BOT_CARD_POS_6 = (738, 435)
 ANTI_BOT_CARD_WIDTH = 183
 ANTI_BOT_CARD_HEIGHT = 241
+
+# ===================================================================================
+# APPLICATION ICON  (main.pyw uses this for the window + taskbar icon)
+# ===================================================================================
+# Resolved relative to the "src" directory. The first existing file wins.
+APP_ICON_CANDIDATES = (
+    "templates/app_icon.png",
+    "templates/app_icon.ico",
+    "bot_icon.ico",
+)
+# Windows taskbar grouping id so the app does not show the generic Python icon.
+APP_USER_MODEL_ID = "CookieRun.Classic.Automation"
+
+# ===================================================================================
+# MODE PRESETS  (dynamic dashboard presets: farming / gacha / hybrid)
+# ===================================================================================
+MODE_FARMING = "FARMING"
+MODE_GACHA = "GACHA"
+MODE_HYBRID = "HYBRID"
+DEFAULT_BOT_MODE = MODE_FARMING
+
+# ===================================================================================
+# TREASURE GACHA & SMART SALVAGE
+# ===================================================================================
+# 9-step routine:
+#   1. tap treasure_menu        5. tap treasure_cabinet_btn
+#   2. tap treasure_draw_tab     6. tap treasure_sort_btn -> treasure_sort_obtained
+#   3. verify coins >= 5,000     7. tap treasure_extract_mode_btn
+#   4. tap treasure_5k_gacha + confirm (x rounds)   8. smart-select low tier
+#   9. confirm extraction -> back to lobby
+TREASURE_GACHA_COST = 5000
+DEFAULT_GACHA_ROUNDS = 1
+DEFAULT_GACHA_AUTO_DISMANTLE = True
+DEFAULT_GACHA_PRESERVE_RAINBOW = True      # never salvage rainbow / S-tier borders
+DEFAULT_GACHA_PRESERVE_COOKIE = True       # never salvage cookie-specific treasures
+DEFAULT_GACHA_EVERY_N_RUNS = 10            # hybrid mode: run a gacha session every N runs
+
+# In pure Gacha mode the bot loops: session -> rest -> session.
+GACHA_LOOP_INTERVAL_SECONDS = 30
+
+# Allow coordinate fallbacks when a treasure template has not been calibrated yet.
+# Set to False once every TREASURE_* template exists for maximum safety.
+TREASURE_ALLOW_COORD_FALLBACK = True
+
+# --- Treasure templates (drop the .png files into templates/) ---
+TREASURE_MENU_TEMPLATE = ["TREASURE_MENU_1.png"]
+TREASURE_DRAW_TAB_TEMPLATE = ["TREASURE_DRAW_TAB_1.png"]
+TREASURE_5K_GACHA_TEMPLATE = ["TREASURE_5K_GACHA_1.png"]
+TREASURE_CONFIRM_TEMPLATE = ["TREASURE_CONFIRM_1.png"]
+TREASURE_CABINET_BTN_TEMPLATE = ["TREASURE_CABINET_BTN_1.png"]
+TREASURE_SORT_BTN_TEMPLATE = ["TREASURE_SORT_BTN_1.png"]
+TREASURE_SORT_OBTAINED_TEMPLATE = ["TREASURE_SORT_OBTAINED_1.png"]
+TREASURE_EXTRACT_MODE_BTN_TEMPLATE = ["TREASURE_EXTRACT_MODE_BTN_1.png"]
+TREASURE_EXTRACT_CONFIRM_TEMPLATE = ["TREASURE_EXTRACT_CONFIRM_1.png"]
+# The pop-up "Extract" confirm button looks similar to the trigger button but sits at
+# a DIFFERENT position. Optional: capture it as its own template for maximum accuracy.
+# When this template file is absent the routine reuses TREASURE_EXTRACT_CONFIRM_TEMPLATE
+# (same look) for the second tap and relies on the separate pop-up fallback coordinate.
+TREASURE_EXTRACT_POPUP_TEMPLATE = ["TREASURE_EXTRACT_POPUP_CONFIRM_1.png"]
+TREASURE_LOBBY_BACK_TEMPLATE = ["TREASURE_LOBBY_BACK_1.png"]
+# --- Smart-selection strategy ------------------------------------------------
+#  True (recommended): POSITIVE MATCH — a slot is tapped ONLY when it matches at
+#        least one "salvageable" template (TREASURE_SALVAGE_*.png in templates/).
+#        Nothing else is ever touched, so common rainbow/S-tier items are safe by
+#        default without needing thousands of exclusion templates.
+#  False: EXCLUSION — tap everything that is NOT protected (requires the rainbow +
+#        cookie protection templates, hard to maintain when rainbow items are common).
+TREASURE_POSITIVE_SELECT = True
+# Optional fallback list. The primary source is auto-discovery of TREASURE_SALVAGE_*.png
+# files dropped into templates/ (you can add new low-tier images anytime without editing config).
+TREASURE_SALVAGE_TEMPLATE = []
+# STRICT EXCLUSION protection templates — even in positive-select mode a match on any
+# of these in a slot means the treasure is protected and will NEVER be selected.
+TREASURE_RAINBOW_BORDER_TEMPLATE = ["TREASURE_RAINBOW_1.png"]
+TREASURE_COOKIE_ICON_TEMPLATE = ["TREASURE_COOKIE_1.png"]
+
+# --- Treasure regions (full frame unless a tighter search box is known) ---
+TREASURE_SCAN_REGION = (0, 0, 1280, 720)
+TREASURE_BUTTON_REGION = (0, 0, 1280, 720)
+
+# --- Coordinate fallbacks (CALIBRATE against your own 1280x720 layout) ---
+TREASURE_MENU_BUTTON = (1160, 640)
+TREASURE_DRAW_TAB_BUTTON = (640, 110)
+TREASURE_5K_GACHA_BUTTON = (900, 620)
+TREASURE_CONFIRM_BUTTON = (640, 620)
+TREASURE_CABINET_BTN_BUTTON = (1100, 110)
+TREASURE_SORT_BTN_BUTTON = (1150, 110)
+TREASURE_SORT_OBTAINED_BUTTON = (1000, 210)
+TREASURE_EXTRACT_MODE_BTN_BUTTON = (1150, 170)
+TREASURE_EXTRACT_CONFIRM_BUTTON = (640, 600)
+# The Extract confirmation appears twice as an identical "Extract" button:
+# first the trigger, then a pop-up confirm (usually near the screen centre).
+TREASURE_EXTRACT_POPUP_CONFIRM_BUTTON = (640, 400)
+TREASURE_LOBBY_BACK_BUTTON = (60, 60)
+
+# --- Smart-selection inventory grid (CALIBRATE) ---
+TREASURE_GRID_ORIGIN = (250, 215)   # top-left slot centre origin (x, y)
+TREASURE_GRID_COLS = 6
+TREASURE_GRID_ROWS = 3
+TREASURE_SLOT_W = 130
+TREASURE_SLOT_H = 120
+TREASURE_MAX_SELECTIONS = 30
+# How many select+extract passes to run — the routine stops early (with a log)
+# as soon as a pass finds nothing left to salvage.
+TREASURE_EXTRACT_MAX_PASSES = 4
+
+# --- Lobby coin balance banner (used to verify the 5,000-coin cost) ---
+# Crop of the coin counter in the top currency banner. ``extract_lobby_coins``
+# returns -1 when the value cannot be read (callers then proceed with a warning).
+LOBBY_COIN_REGION = (940, 22, 1215, 60)

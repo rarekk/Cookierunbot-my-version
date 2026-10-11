@@ -59,6 +59,14 @@ class StartBotRequest(BaseModel):
     short_relay_exit_delay: float = 2.0
     smart_relay_guard: bool = True
     short_relay_exit: bool = False
+    # Mode presets + Treasure Gacha / Salvage settings
+    bot_mode: str = "FARMING"
+    gacha_rounds: int = 1
+    gacha_auto_dismantle: bool = True
+    gacha_preserve_rainbow: bool = True
+    gacha_preserve_cookie: bool = True
+    gacha_every_n_runs: int = 10
+    gacha_loop_interval: float = 30.0
 
 
 class ConnectionTestRequest(BaseModel):
@@ -124,6 +132,13 @@ DEFAULT_BOT_SETTINGS = {
     "short_relay_exit_delay": 2.0,
     "smart_relay_guard": True,
     "short_relay_exit": False,
+    "bot_mode": "FARMING",
+    "gacha_rounds": 1,
+    "gacha_auto_dismantle": True,
+    "gacha_preserve_rainbow": True,
+    "gacha_preserve_cookie": True,
+    "gacha_every_n_runs": 10,
+    "gacha_loop_interval": 30.0,
 }
 
 

@@ -456,3 +456,61 @@ def detect_result_screen_mystery_box(screen) -> list:
     if max_val >= 0.70:
         return ["wood"]  # Result screen shows mystery box badge
     return []
+
+
+def extract_lobby_coins(screen, region=None) -> int:
+    """Best-effort read of the lobby coin counter from the top currency banner.
+
+    Returns the parsed integer, or ``-1`` when the value cannot be reliably read
+    (callers should treat ``-1`` as "unknown" rather than "zero coins").
+    """
+    if screen is None or screen.size == 0:
+        return -1
+
+    h, w = screen.shape[:2]
+    if (w, h) != (1280, 720):
+        screen = cv2.resize(screen, (1280, 720), interpolation=cv2.INTER_AREA)
+
+    if region is None:
+        region = (940, 22, 1215, 60)
+    x1, y1, x2, y2 = region
+    crop = screen[y1:y2, x1:x2]
+    if crop.size == 0:
+        return -1
+
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    # Coin digits are bright (white) text on a dark banner.
+    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    boxes = []
+    for c in contours:
+        x, y, bw, bh = cv2.boundingRect(c)
+        if 10 <= bh <= 34 and 3 <= bw <= 30:
+            boxes.append((x, y, bw, bh))
+
+    if not boxes:
+        return -1
+
+    boxes = sorted(boxes, key=lambda b: b[0])
+    digits = _load_digit_templates()
+    if not digits:
+        return -1
+
+    digits_str = ""
+    for (x, y, bw, bh) in boxes:
+        char_img = thresh[y:y + bh, x:x + bw]
+        best_d = "0"
+        best_score = -1.0
+        for d, tmpl in digits.items():
+            t_scaled = cv2.resize(tmpl, (char_img.shape[1], char_img.shape[0]))
+            res = float(cv2.matchTemplate(char_img, t_scaled, cv2.TM_CCOEFF_NORMED)[0][0])
+            if res > best_score:
+                best_score = res
+                best_d = d
+        digits_str += best_d
+
+    try:
+        return int(digits_str) if digits_str else -1
+    except ValueError:
+        return -1

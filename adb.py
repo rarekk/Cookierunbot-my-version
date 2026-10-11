@@ -7,6 +7,8 @@ import time
 import cv2
 import numpy as np
 
+import logbus
+
 NO_WINDOW_FLAGS = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 
 def _run_cmd(cmd_list, **kwargs):
@@ -71,7 +73,7 @@ def device_connect(ip: str, port: int):
         stderr=subprocess.PIPE,
         text=True,
     )
-    print(f"🔌 {result.stdout.strip().capitalize()}")
+    logbus.log(f"🔌 {result.stdout.strip().capitalize()}")
     if "connected" not in result.stdout.lower() and "already connected" not in result.stdout.lower():
         raise Exception(f"❌ Failed to connect to {ip}:{port}\n{result.stderr.strip()}")
 
@@ -144,44 +146,44 @@ def device_is_app_running(ip: str, port: int, package: str) -> bool:
 
 def device_reset_app(ip: str, port: int, package: str = "com.devsisters.crg", max_retries: int = 5):
     adb = get_adb_path()
-    print(f"🔄 Resetting app {package} on device at {ip}:{port}...")
+    logbus.log(f"🔄 Resetting app {package} on device at {ip}:{port}...")
     _run_cmd(
         [adb, "-s", f"{ip}:{port}", "shell", "cmd", "activity", "force-stop", package],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    print(f"⏳ Waiting 15 seconds for app {package} to stop...")
+    logbus.log(f"⏳ Waiting 15 seconds for app {package} to stop...")
     time.sleep(15)
 
     for attempt in range(1, max_retries + 1):
-        print(f"📱 Restarting app {package} on device at {ip}:{port} (attempt {attempt}/{max_retries})...")
+        logbus.log(f"📱 Restarting app {package} on device at {ip}:{port} (attempt {attempt}/{max_retries})...")
         _run_cmd(
             [adb, "-s", f"{ip}:{port}", "shell", "monkey", "-p", package, "1"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
-        print(f"⏳ Waiting 15 seconds to check if app started...")
+        logbus.log(f"⏳ Waiting 15 seconds to check if app started...")
         time.sleep(15)
 
         if device_is_app_running(ip, port, package):
-            print(f"📊 App {package} is running, verifying stability...")
+            logbus.log(f"📊 App {package} is running, verifying stability...")
             stable = True
             for check in range(1, 4):
                 time.sleep(20)
                 if not device_is_app_running(ip, port, package):
-                    print(f"💥 App {package} crashed during stability check ({check}/3).")
+                    logbus.log(f"💥 App {package} crashed during stability check ({check}/3).")
                     stable = False
                     break
-                print(f"✅ Stability check {check}/3 passed.")
+                logbus.log(f"✅ Stability check {check}/3 passed.")
             if stable:
-                print(f"✅ App {package} is stable.")
+                logbus.log(f"✅ App {package} is stable.")
                 return
 
-        print(f"💥 App {package} appears to have crashed after launch.")
+        logbus.log(f"💥 App {package} appears to have crashed after launch.")
         if attempt < max_retries:
-            print(f"🔁 Retrying in 5 seconds...")
+            logbus.log(f"🔁 Retrying in 5 seconds...")
             time.sleep(5)
 
     raise Exception(f"❌ Failed to start {package} after {max_retries} attempts.")
